@@ -28,12 +28,12 @@
   file:
     path: "{{ ORACLE_HOME }}"
     state: directory
-    mode: '0777'
+    mode: '0775'
     owner: "{{ ORACLE_USER }}"
     group: "{{ ORACLE_GROUP }}"
   tags: base_dir
-  become_user: "{{ ORACLE_USER }}"
   become: yes
+  become_method: "sudo"
 
 - name: Server Configuration Requirements
   block:
