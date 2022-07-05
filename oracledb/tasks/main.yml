@@ -21,6 +21,9 @@
     - "{{ DEPENDENCIES }}"
 
   tags: pre_req
+  become: yes
+  become_user: "{{ ORACLE_USER }}"
+  become_method: "sudo"
 
 - name: Creating Oracle home Base Directory
   file:
