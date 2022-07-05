@@ -33,6 +33,8 @@
     group: "{{ ORACLE_GROUP }}"
   tags: base_dir
   become_user: "{{ ORACLE_USER }}"
+  become: yes
+  become_method: "sudo"
 
 - name: Server Configuration Requirements
   block:
