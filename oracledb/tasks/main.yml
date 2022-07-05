@@ -1,10 +1,10 @@
----
+
 # tasks file for oracledb
 - name: Checking Hardware Requirements
   block:
   - name: Validate the OS and Hardware Check
     assert:
-      that: 
+      that:
         - ansible_distribution == "{{ OS_DISTRO }}"
         - ansible_distribution_version | float >= {{ MIN_OS_VER  }}
         - ansible_kernel is version( '{{ MIN_KERNEL_VER }}' , '>=')
@@ -41,10 +41,10 @@
     shell: df {{ TMPDIR }} --output=avail | tail -1
     register: tmp_space
     changed_when: false
-  
+
   - name: Validate the minimum space in /tmp directory
     assert:
-      that: 
+      that:
         - (tmp_space.stdout | int // 1000) >= {{ MIN_TMP }}
 
   - name: Check Space available in Oracle Home Directory
@@ -56,12 +56,12 @@
     assert:
       that:
         - (storage_space.stdout | int // 1000) >= {{ MIN_STORAGE }}
- 
+
   tags: sr_config
 
 - name: Download Oracle19c
   block:
-  - name: Download Tar file with authentication      
+  - name: Download Tar file with authentication
     get_url:
       url: "{{ DOWNLOAD_LINK }}"
       dest: "{{ ORACLE_HOME }}"
@@ -104,8 +104,11 @@
     insertafter: '^#CV_ASSUME_DISTID'
     line: "CV_ASSUME_DISTID={{ DIST_ID }}"
   tags: change_dist_id
+  become: yes
+  become_user: "{{ ORACLE_USER }}"
+  become_method: "sudo"
 
-- name: Installting software and executing root.sh 
+- name: Installting software and executing root.sh
   block:
   - name: Install oracle 19c software
     shell:
@@ -123,6 +126,9 @@
       cmd: "../oraInventory/orainstRoot.sh"
     ignore_errors: yes
     tags: execute_orainsroot
+    become: yes
+    become_user: "root"
+    become_method: "sudo"
 
   - name: Executing root.sh
     shell:
@@ -130,6 +136,10 @@
       cmd: "./root.sh -silent"
     ignore_errors: yes
     tags: exec_rootsh
+    become: yes
+    become_user: "root"
+    become_method: "sudo"
+
 
 - name: Updating bash_profile file for oracle path
   blockinfile:
@@ -145,3 +155,6 @@
       export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
       export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
   tags: upd_bash
+  become: yes
+  become_user: "{{ ORACLE_USER }}"
+  become_method: "sudo"
