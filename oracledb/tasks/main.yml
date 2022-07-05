@@ -1,0 +1,143 @@
+---
+# tasks file for oracledb
+- name: Checking Hardware Requirements
+  block:
+  - name: Validate the OS and Hardware Check
+    assert:
+      that: 
+        - ansible_distribution == "{{ OS_DISTRO }}"
+        - ansible_distribution_version | float >= {{ MIN_OS_VER  }}
+        - ansible_kernel is version( '{{ MIN_KERNEL_VER }}' , '>=')
+        - ansible_memtotal_mb >= {{ MIN_MEMORY }}
+        - ansible_memory_mb.swap.total >= {{ MIN_SWAP }}
+  tags: hw_req
+
+- name: Installing Oracle DB pre-requisites
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - "{{ PRE_RPM }}"
+    - "{{ DEPENDENCIES }}"
+
+  tags: pre_req
+
+- name: Creating Oracle home Base Directory
+  file:
+    path: "{{ ORACLE_HOME }}"
+    state: directory
+    mode: '0775'
+    owner: "{{ ORACLE_USER }}"
+    group: "{{ ORACLE_GROUP }}"
+  tags: base_dir
+
+- name: Server Configuration Requirements
+  block:
+  - name: Checking /tmp folder space
+    shell: df {{ TMPDIR }} --output=avail | tail -1
+    register: tmp_space
+    changed_when: false
+  
+  - name: Validate the minimum space in /tmp directory
+    assert:
+      that: 
+        - (tmp_space.stdout | int // 1000) >= {{ MIN_TMP }}
+
+  - name: Check Space available in Oracle Home Directory
+    shell: df {{ ORACLE_HOME }} --output=avail | tail -1
+    register: storage_space
+    changed_when: false
+
+  - name:  Validate the minimum Storage for Installation
+    assert:
+      that:
+        - (storage_space.stdout | int // 1000) >= {{ MIN_STORAGE }}
+ 
+  tags: sr_config
+
+- name: Download Oracle19c
+  block:
+  - name: Download Tar file with authentication      
+    get_url:
+      url: "{{ DOWNLOAD_LINK }}"
+      dest: "{{ ORACLE_HOME }}"
+    tags: download_db
+    ignore_errors: yes
+
+  - name: Extract LINUX.X64_193000_db_home.zip into ORACLE_HOME
+    unarchive:
+      src: "{{ ORACLE_HOME }}/LINUX.X64_193000_db_home.zip"
+      dest: "{{ ORACLE_HOME }}"
+    tags: unzip_package
+    ignore_errors: yes
+
+  become: yes
+  become_user: "{{ ORACLE_USER }}"
+  become_method: "sudo"
+  tags: download_extract_db
+
+- name: Removing the zip file
+  file:
+    path: "{{ ORACLE_HOME }}/LINUX.X64_193000_db_home.zip"
+    state: absent
+  tags: remove_zip
+
+- name: Copying the response file to base location
+  template:
+    src: "templates/{{ RESPONSE_FILE }}.j2"
+    dest: "{{ ORACLE_HOME }}/install/response/{{ RESPONSE_FILE }}"
+    owner: "{{ ORACLE_USER }}"
+    group: "{{ ORACLE_GROUP }}"
+  tags: response_file
+  become_user: "{{ ORACLE_USER }}"
+  become: yes
+  become_method: "sudo"
+
+- name: Ensure the default Distro ID is Oracle linux 8
+  lineinfile:
+    path: "{{ ORACLE_HOME }}/cv/admin/cvu_config"
+    regexp: '^CV_ASSUME_DISTID'
+    insertafter: '^#CV_ASSUME_DISTID'
+    line: "CV_ASSUME_DISTID={{ DIST_ID }}"
+  tags: change_dist_id
+
+- name: Installting software and executing root.sh 
+  block:
+  - name: Install oracle 19c software
+    shell:
+      chdir: "{{ ORACLE_HOME }}"
+      cmd: "./runInstaller -silent -responseFile {{ ORACLE_HOME }}/install/response/{{ RESPONSE_FILE}} -noconfig -ignorePrereqFailure"
+    ignore_errors: yes
+    tags: install_swonly
+    become: yes
+    become_user: "{{ ORACLE_USER }}"
+    become_method: "sudo"
+
+  - name: Executing orainstRoot.sh
+    shell:
+      chdir: "{{ ORACLE_BASE }}"
+      cmd: "../oraInventory/orainstRoot.sh"
+    ignore_errors: yes
+    tags: execute_orainsroot
+
+  - name: Executing root.sh
+    shell:
+      chdir: "{{ ORACLE_HOME }}"
+      cmd: "./root.sh -silent"
+    ignore_errors: yes
+    tags: exec_rootsh
+
+- name: Updating bash_profile file for oracle path
+  blockinfile:
+    path: /home/oracle/.bash_profile
+    block: |
+      # oracle setting
+      export TMP={{ TMPDIR }}
+      export TMPDIR=$TMP
+      export ORACLE_BASE={{ ORACLE_BASE }}
+      export ORACLE_HOME={{ ORACLE_HOME }}
+      export PATH=/usr/sbin:$PATH
+      export PATH=$ORACLE_HOME/bin:$PATH
+      export LD_LIBRARY_PATH=$ORACLE_HOME/lib:/lib:/usr/lib
+      export CLASSPATH=$ORACLE_HOME/jlib:$ORACLE_HOME/rdbms/jlib
+  tags: upd_bash

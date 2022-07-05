@@ -1,0 +1,5 @@
+- name: Deploying OracleDB role
+  hosts: localhost
+  roles:
+    - oracledb
+
