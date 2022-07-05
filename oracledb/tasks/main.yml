@@ -28,7 +28,7 @@
   file:
     path: "{{ ORACLE_HOME }}"
     state: directory
-    mode: '0775'
+    mode: '0777'
     owner: "{{ ORACLE_USER }}"
     group: "{{ ORACLE_GROUP }}"
   tags: base_dir
