@@ -32,6 +32,7 @@
     owner: "{{ ORACLE_USER }}"
     group: "{{ ORACLE_GROUP }}"
   tags: base_dir
+  become_user: "{{ ORACLE_USER }}"
 
 - name: Server Configuration Requirements
   block:
